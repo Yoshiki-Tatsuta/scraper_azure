@@ -2,6 +2,7 @@ from deep_translator import GoogleTranslator
 from datetime import datetime
 from bs4 import BeautifulSoup
 from openpyxl import load_workbook
+from openpyxl.styles import Font, Color
 import requests
 
 class AzureUpdatesScraper:
@@ -36,7 +37,7 @@ class AzureUpdatesScraper:
             excel_file_path = 'test.xlsx'
             wb = load_workbook(excel_file_path)
             ws = wb.active
-            for start_cell in range(1, ws.max_row+2):
+            for start_cell in range(3, ws.max_row+2):
                 if ws[f'A{start_cell}'].value is None:
                     print(f'{start_cell}行目から書き込みます')
                     for i, url in enumerate(self.full_urls, start_cell):
@@ -54,20 +55,28 @@ class AzureUpdatesScraper:
                         tags_ul = soup.find('ul', class_='tags')
                         tags_li = tags_ul.find_all('li')
                         tags = [li.text for li in tags_li]
-                        tags_str = ','.join(tags)
+                        tags_str = '\n'.join(tags)
                         # 本文の取得
                         main_column_tags = soup.find('div', class_='column small-12')
                         main_tags = main_column_tags.find('div', class_='row column')
                         main_tag = main_tags.text.strip()
                         # 本文の日本語翻訳
                         main_tag_ja = self.translator.translate(main_tag)
+                        # ステータスの取得
+                        sta_tag = soup.find('span', class_='status-indicator__label')
                         # セルに書き込み
                         if h1_tag and date_tag and tags_str and main_tag and main_tag_ja:
                             ws[f'A{i}'] = h1_tag.text
+                            ws[f'A{i}'].hyperlink = url
+                            ws[f'A{i}'].font = Font(color=Color("0563C1"), underline="single")
                             ws[f'B{i}'] = date_tag
-                            ws[f'C{i}'] = tags_str
-                            ws[f'D{i}'] = main_tag
-                            ws[f'E{i}'] = main_tag_ja
+                            if sta_tag is not None:
+                                ws[f'C{i}'] = sta_tag.text
+                            else:
+                                print("タグが存在しません。")
+                            ws[f'D{i}'] = tags_str
+                            ws[f'E{i}'] = main_tag
+                            ws[f'F{i}'] = main_tag_ja
                         else:
                             print('なにかの値がとれていません。')
                     break
