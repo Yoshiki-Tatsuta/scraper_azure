@@ -4,6 +4,10 @@ from bs4 import BeautifulSoup
 from openpyxl import load_workbook
 from openpyxl.styles import Font, Color
 import requests
+import argostranslate.package
+import argostranslate.translate
+import pathlib
+
 
 class AzureUpdatesScraper:
     def __init__(self, get_limit):
@@ -12,6 +16,57 @@ class AzureUpdatesScraper:
         self.begin_url = 'https://azure.microsoft.com'
         self.translator = GoogleTranslator(source='auto', target='ja')
         self.full_urls = []
+        self.pkg_infos = [
+            self.ArgosTranslateInfo(from_code='en', to_code='ja'),
+        ]
+        # Packageインデクス情報をダウンロード確認 (アップデート確認)
+        argostranslate.package.update_package_index()
+        # 今回使用するパッケージ情報を取得し、パッケージをダウンロードし、そのパスを保存しておく
+        # 2回目以降の実行では、pkg_infosのdownload_pathさえあれば、今回使用するパッケージを読み込みのみで実行可能
+        for pkg_info in self.pkg_infos:
+            if pkg_info.download_path is None or not pkg_info.download_path.exists():
+                argostranslate.package.update_package_index()
+                self.do_download(pkg_info)
+            argostranslate.package.install_from_path(pkg_info.download_path)
+
+
+    class ArgosTranslateInfo:
+        def __init__(self, from_code: str = 'en', to_code: str = 'jp', download_path: pathlib.Path = None):
+            self.from_code: str = from_code
+            self.to_code: str = to_code
+            self.download_path = download_path
+
+        def do_download(self, install_package: argostranslate.package.AvailablePackage) -> None:
+            # 今回使用するパッケージをダウンロードし、そのパスを保存しておく
+            self.set_download_path(install_package.download())
+
+        def set_download_path(self, download_path: pathlib.Path) -> None:
+            self.download_path = download_path
+
+
+    def do_download(self, pkg_info: ArgosTranslateInfo) -> None:
+        # 使用可能な翻訳パッケージ情報を取得
+        available_pkgs: list = argostranslate.package.get_available_packages()
+
+        # 今回使う翻訳パッケージ情報を取得
+        install_package: argostranslate.package.AvailablePackage = next(
+            filter(
+                lambda x: x.from_code == pkg_info.from_code and x.to_code == pkg_info.to_code,
+                available_pkgs
+            )
+        )
+
+        # ダウンロード実施 (パスも保存される)
+        pkg_info.do_download(install_package)
+
+
+    def do_translate(self, text: str, from_code: str = 'en', to_code: str = 'ja') -> str:
+        translatedText: str = argostranslate.translate.translate(
+            text, from_code, to_code)
+        if to_code == 'ja':
+            print('日本語に翻訳完了')
+        return translatedText
+
 
     def scrape_url(self):
         try:
@@ -39,7 +94,7 @@ class AzureUpdatesScraper:
             ws = wb.active
             for start_cell in range(3, ws.max_row+2):
                 if ws[f'A{start_cell}'].value is None:
-                    print(f'{start_cell}行目から書き込みます')
+                    print(f'Excelの{start_cell}行目から書き込みます')
                     for i, url in enumerate(self.full_urls, start_cell):
                         response = requests.get(url)
                         soup = BeautifulSoup(response.text, 'html.parser')
@@ -61,7 +116,7 @@ class AzureUpdatesScraper:
                         main_tags = main_column_tags.find('div', class_='row column')
                         main_tag = main_tags.text.strip()
                         # 本文の日本語翻訳
-                        main_tag_ja = self.translator.translate(main_tag)
+                        main_tag_ja = self.do_translate(main_tag)
                         # ステータスの取得
                         sta_tag = soup.find('span', class_='status-indicator__label')
                         # セルに書き込み
@@ -82,7 +137,7 @@ class AzureUpdatesScraper:
                     break
             wb.save(excel_file_path)
             wb.close()
-            return print('取得した値の書き込み完了')
+            return print('取得した値をExcelに書き込み完了')
         except Exception as e:
             print(f"エラーが発生しました。: {e}")
 
