@@ -30,15 +30,18 @@ class AzureUpdatesScraper:
             argostranslate.package.install_from_path(pkg_info.download_path)
 
 
+    # argostranslate使用するためのクラス
     class ArgosTranslateInfo:
         def __init__(self, from_code: str = 'en', to_code: str = 'jp', download_path: pathlib.Path = None):
             self.from_code: str = from_code
             self.to_code: str = to_code
             self.download_path = download_path
 
+
         def do_download(self, install_package: argostranslate.package.AvailablePackage) -> None:
             # 今回使用するパッケージをダウンロードし、そのパスを保存しておく
             self.set_download_path(install_package.download())
+
 
         def set_download_path(self, download_path: pathlib.Path) -> None:
             self.download_path = download_path
@@ -60,6 +63,7 @@ class AzureUpdatesScraper:
         pkg_info.do_download(install_package)
 
 
+    # 実行する関数
     def do_translate(self, text: str, from_code: str = 'en', to_code: str = 'ja') -> str:
         translatedText: str = argostranslate.translate.translate(
             text, from_code, to_code)
@@ -68,6 +72,7 @@ class AzureUpdatesScraper:
         return translatedText
 
 
+    # 対象のURLを取得
     def scrape_url(self):
         try:
             response = requests.get(self.get_url)
@@ -87,13 +92,14 @@ class AzureUpdatesScraper:
         except Exception as e:
             print(f"エラーが発生しました。: {e}")
 
+
     def excel_write(self):
         try:
-            excel_file_path = 'test.xlsx'
+            excel_file_path = 'Azure Update情報.xlsx'
             wb = load_workbook(excel_file_path)
             ws = wb.active
             for start_cell in range(3, ws.max_row+2):
-                if ws[f'A{start_cell}'].value is None:
+                if ws[f'B{start_cell}'].value is None:
                     print(f'Excelの{start_cell}行目から書き込みます')
                     for i, url in enumerate(self.full_urls, start_cell):
                         response = requests.get(url)
@@ -121,17 +127,17 @@ class AzureUpdatesScraper:
                         sta_tag = soup.find('span', class_='status-indicator__label')
                         # セルに書き込み
                         if h1_tag and date_tag and tags_str and main_tag and main_tag_ja:
-                            ws[f'A{i}'] = h1_tag.text
-                            ws[f'A{i}'].hyperlink = url
-                            ws[f'A{i}'].font = Font(color=Color("0563C1"), underline="single")
+                            ws[f'F{i}'] = h1_tag.text
+                            ws[f'F{i}'].hyperlink = url
+                            ws[f'F{i}'].font = Font(color=Color("0563C1"), underline="single")
                             ws[f'B{i}'] = date_tag
                             if sta_tag is not None:
                                 ws[f'C{i}'] = sta_tag.text
                             else:
                                 print("タグが存在しません。")
                             ws[f'D{i}'] = tags_str
-                            ws[f'E{i}'] = main_tag
-                            ws[f'F{i}'] = main_tag_ja
+                            ws[f'I{i}'] = main_tag
+                            ws[f'G{i}'] = main_tag_ja
                         else:
                             print('なにかの値がとれていません。')
                     break
@@ -140,6 +146,7 @@ class AzureUpdatesScraper:
             return print('取得した値をExcelに書き込み完了')
         except Exception as e:
             print(f"エラーが発生しました。: {e}")
+
 
 # 実行
 get_limit_input = int(input('取得したい数を入力してください。：  '))
